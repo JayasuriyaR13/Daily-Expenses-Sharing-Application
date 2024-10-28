@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Balance Sheet</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h2 { color: #333; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 4px;
+            text-align: left;
+        }
+        th { background-color: #f2f2f2; }
+        .error-message { color: red; }
+        .download-button { 
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .download-button:hover { background-color: #45a049; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+    <h1>Balance Sheet</h1>
+    <div id="userAccount">
+        <h2>User Account Details:</h2>
+        <p>Name: <span id="userName"></span></p>
+        <p>Email: <span id="userEmail"></span></p>
+        <p>Mobile: <span id="userMobile"></span></p>
+    </div>
+    <div id="errorMessage" class="error-message" style="display:none;">No user account details found.</div>
+    
+    <table id="balanceSheetTable">
+        <thead>
+            <tr>
+                <th>Expense Name</th>
+                <th>Amount</th>
+                <th>Paid By</th>
+                <th>Split Type</th>
+                <th>Participants</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    
+    <button class="download-button" onclick="downloadPDF()">Download PDF</button>
+    
+    <script>
+        const userData = JSON.parse(localStorage.getItem("userData")) || [];
+        
+        if (userData && userData.length > 0) {
+            const latestUser = userData[userData.length - 1];
+            document.getElementById("userName").textContent = latestUser.name;
+            document.getElementById("userEmail").textContent = latestUser.email;
+            document.getElementById("userMobile").textContent = latestUser.mobile;
+        } else {
+            document.getElementById("errorMessage").style.display = "block";
+            document.getElementById("userAccount").style.display = "none";
+        }
+
+        const expenses = JSON.parse(localStorage.getItem("expensesData")) || [];
+
+        window.onload = function() {
+            const tbody = document.getElementById('balanceSheetTable').querySelector('tbody');
+            expenses.forEach(expense => {
+                const row = tbody.insertRow();
+                row.insertCell(0).textContent = expense.name;
+                row.insertCell(1).textContent = expense.amount.toFixed(2);
+                row.insertCell(2).textContent = expense.paidBy;
+                row.insertCell(3).textContent = expense.splitType;
+                
+                const participantsString = Array.isArray(expense.participants) 
+                    ? expense.participants.map(p => typeof p === 'object' ? JSON.stringify(p) : p).join(", ")
+                    : "Invalid participants data";
+                row.insertCell(4).textContent = participantsString || "No participants";
+            });
+        };
+
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({
+                orientation: 'p',  // 'p' for portrait mode
+                unit: 'pt',        // Use points as the unit
+                format: [612, 792] // Standard letter size: 8.5 x 11 inches (612 x 792 points)
+            });
+
+            doc.setFontSize(12);
+            doc.text("Balance Sheet", 20, 30);
+
+            doc.setFontSize(10);
+            doc.text(`Name: ${document.getElementById("userName").textContent}`, 20, 60);
+            doc.text(`Email: ${document.getElementById("userEmail").textContent}`, 20, 75);
+            doc.text(`Mobile: ${document.getElementById("userMobile").textContent}`, 20, 90);
+
+            doc.setFontSize(9);
+            let yPosition = 120;
+
+            // Define column headers with proper width adjustments
+            const headers = ["Expense Name", "Amount", "Paid By", "Split Type", "Participants "];
+            const columnWidths = [80, 50, 50, 50, 120, 200];
+            headers.forEach((header, index) => {
+                doc.text(header, 20 + columnWidths.slice(0, index).reduce((a, b) => a + b, 0), yPosition);
+            });
+
+            doc.setDrawColor(200);
+            doc.line(20, yPosition + 3, 590, yPosition + 3);
+            yPosition += 15;
+
+            expenses.forEach(expense => {
+                const data = [
+                    expense.name,
+                    expense.amount.toFixed(2),
+                    expense.paidBy,
+                    expense.splitType,
+                    Array.isArray(expense.participants)
+                        ? expense.participants.map(p => (typeof p === 'object' ? JSON.stringify(p) : p)).join(", ")
+                        : "Invalid participants data",
+                   
+                ];
+
+                data.forEach((text, index) => {
+                    doc.text(text.toString(), 20 + columnWidths.slice(0, index).reduce((a, b) => a + b, 0), yPosition);
+                });
+
+                yPosition += 12;
+
+                if (yPosition > 750) {
+                    doc.addPage();
+                    yPosition = 30;
+                }
+            });
+
+            const date = new Date();
+            const timestamp = date.toISOString().replace(/[-:.]/g, "_").slice(0, 19);
+            const filename = `balance_sheet_${timestamp}.pdf`;
+            doc.save(filename);
+        }
+    </script>
+</body>
+</html>

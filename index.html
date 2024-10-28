@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Daily Expenses Sharing App</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; max-width: 800px; }
+        .container { margin-bottom: 20px; padding: 20px; border: 1px solid #ddd; }
+        h2 { color: #333; }
+        input, select, button { margin-top: 10px; padding: 8px; width: 100%; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .download-button { margin-top: 20px; padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        .download-button:hover { background-color: #45a049; }
+        .remove-button { background-color: #f44336; color: white; border: none; cursor: pointer; }
+        .remove-button:hover { background-color: #d32f2f; }
+        .reset-button { background-color: #2196F3; color: white; border: none; cursor: pointer; }
+        .reset-button:hover { background-color: #0b7dda; }
+    </style>
+    <script>
+        let users = JSON.parse(localStorage.getItem("userData")) || [];
+        let expenses = JSON.parse(localStorage.getItem("expensesData")) || [];
+
+        function createUser()
+        {
+            const name = document.getElementById('userName').value.trim();
+            const email = document.getElementById('userEmail').value.trim();
+            const mobile = document.getElementById('userMobile').value.trim();
+
+            if (name && email && mobile) {
+                const user = { name, email, mobile };
+                users.push(user);
+                localStorage.setItem("userData", JSON.stringify(users));
+                updateUserDropdown();
+                addUserToList(user);
+                alert("User added successfully!");
+                clearUserInputs();
+            } else alert("Please fill all fields!");
+        }
+
+        function updateUserDropdown()
+        {
+            const paidByUserSelect = document.getElementById('paidByUser');
+            paidByUserSelect.innerHTML = '<option value="" disabled selected>Paid By</option>'; // Reset dropdown
+            users.forEach(user => {
+                const option = document.createElement('option');
+                option.text = user.name;
+                option.value = user.name;
+                paidByUserSelect.add(option);
+            });
+        }
+
+        function addUserToList(user)
+        {
+            const userListItem = document.createElement('li');
+            userListItem.textContent = `${user.name} - ${user.email} - ${user.mobile}`;
+            const removeButton = document.createElement('button');
+            removeButton.textContent = "Remove";
+            removeButton.className = "remove-button";
+            removeButton.onclick = () => removeUser(user.name, userListItem);
+            userListItem.appendChild(removeButton);
+            document.getElementById('userList').appendChild(userListItem);
+        }
+
+        function clearUserInputs()
+        {
+            document.getElementById('userName').value = '';
+            document.getElementById('userEmail').value = '';
+            document.getElementById('userMobile').value = '';
+        }
+
+        function removeUser(name, userListItem)
+        {
+            users = users.filter(user => user.name !== name);
+            localStorage.setItem("userData", JSON.stringify(users));
+            document.getElementById('userList').removeChild(userListItem);
+            updateUserDropdown();
+            alert("User removed successfully!");
+        }
+
+        function showSplitOptions()
+        {
+            const splitType = document.getElementById('splitType').value;
+            const splitDetails = document.getElementById('splitDetails');
+            splitDetails.innerHTML = '';
+
+            if (splitType === 'equal') {
+                const participantCount = users.length;
+                splitDetails.innerHTML = `<p>Split equally among ${participantCount} participants.</p>`;
+            } else {
+                const participantCount = prompt("Number of participants:");
+                if (splitType === 'exact') {
+                    for (let i = 0; i < participantCount; i++) {
+                        splitDetails.innerHTML += `
+                            Participant ${i + 1}: <input type="text" placeholder="Name" required>
+                            <input type="number" placeholder="Exact Amount" required><br>
+                        `;
+                    }
+                } else if (splitType === 'percentage') {
+                    for (let i = 0; i < participantCount; i++) {
+                        splitDetails.innerHTML += `
+                            Participant ${i + 1}: <input type="text" placeholder="Name" required>
+                            <input type="number" placeholder="Percentage" required><br>
+                        `;
+                    }
+                }
+            }
+        }
+
+        function addExpense()
+        {
+            const name = document.getElementById('expenseName').value.trim();
+            const amount = parseFloat(document.getElementById('expenseAmount').value);
+            const paidBy = document.getElementById('paidByUser').value;
+            const splitType = document.getElementById('splitType').value;
+            const splitDetails = document.getElementById('splitDetails').querySelectorAll('input');
+
+            if (name && amount && paidBy && splitType) {
+                const participants = [];
+                let totalPercentage = 0;
+                let validSplit = true;
+
+                if (splitType === 'equal') {
+                    const participantCount = users.length;
+                    const equalShare = (amount / participantCount).toFixed(2);
+                    users.forEach(user => {
+                        participants.push({ name: user.name, amount: equalShare });
+                    });
+                } else {
+                    for (let i = 0; i < splitDetails.length; i += 2) {
+                        const participantName = splitDetails[i].value.trim();
+                        const value = parseFloat(splitDetails[i + 1].value);
+
+                        if (splitType === 'percentage') {
+                            totalPercentage += value;
+                            if (totalPercentage > 100) validSplit = false;
+                        }
+
+                        participants.push({
+                            name: participantName,
+                            [splitType === 'exact' ? 'amount' : 'percentage']: value
+                        });
+                    }
+                }
+
+                if (splitType === 'percentage' && totalPercentage !== 100) alert("Percentages must add up to 100%.");
+                else if (!validSplit) alert("Invalid split. Please check amounts or percentages.");
+                else {
+                    expenses.push({ name, amount, paidBy, splitType, participants });
+                    localStorage.setItem("expensesData", JSON.stringify(expenses));
+                    displayExpenses();
+                    alert("Expense added successfully!");
+
+                    document.getElementById('expenseName').value = '';
+                    document.getElementById('expenseAmount').value = '';
+                    document.getElementById('splitType').value = '';
+                    document.getElementById('paidByUser').value = '';
+                    document.getElementById('splitDetails').innerHTML = '';
+                }
+            } else alert("Please fill all fields!");
+        }
+
+        function displayExpenses()
+        {
+            const tbody = document.getElementById('expenseTable').querySelector('tbody');
+            tbody.innerHTML = '';
+
+            expenses.forEach(expense => {
+                const row = tbody.insertRow();
+                row.insertCell(0).textContent = expense.name;
+                row.insertCell(1).textContent = expense.amount.toFixed(2);
+                row.insertCell(2).textContent = expense.paidBy;
+                row.insertCell(3).textContent = expense.splitType;
+                row.insertCell(4).textContent = expense.participants.map(p => `${p.name} (${p.amount || p.percentage} ${expense.splitType === 'percentage' ? '%' : ''})`).join(', ');
+            });
+        }
+
+        function showBalanceSheet()
+        {
+            window.open("balance_sheet.html", "_blank");
+        }
+
+        function resetBilling()
+        {
+            localStorage.removeItem("userData");
+            localStorage.removeItem("expensesData");
+            users = [];
+            expenses = [];
+            document.getElementById('userList').innerHTML = '';
+            updateUserDropdown();
+            displayExpenses();
+            clearUserInputs();
+            alert("Billing data has been reset.");
+        }
+
+        window.onload = () => {
+            updateUserDropdown(); // Load users into dropdown on page load
+            displayExpenses(); // Load expenses on page load
+        }
+    </script>
+</head>
+<body>
+
+    <h1>Daily Expenses Sharing App</h1>
+
+    <div class="container">
+        <h2>Create User</h2>
+        <input type="text" id="userName" placeholder="Enter User Name" required>
+        <input type="email" id="userEmail" placeholder="Enter User Email" required>
+        <input type="tel" id="userMobile" placeholder="Enter User Mobile" required>
+        <button onclick="createUser()">Add User</button>
+        <ul id="userList"></ul>
+    </div>
+
+    <div class="container">
+        <h2>Add Expense</h2>
+        <input type="text" id="expenseName" placeholder="Expense Name" required>
+        <input type="number" id="expenseAmount" placeholder="Amount" required>
+        <select id="paidByUser" required>
+            <option value="" disabled selected>Paid By</option>
+        </select>
+        <select id="splitType" onchange="showSplitOptions()" required>
+            <option value="" disabled selected>Select Split Type</option>
+            <option value="equal">Equal</option>
+            <option value="exact">Exact</option>
+            <option value="percentage">Percentage</option>
+        </select>
+        <div id="splitDetails"></div>
+        <button onclick="addExpense()">Add Expense</button>
+    </div>
+
+    <table id="expenseTable">
+        <thead>
+            <tr>
+                <th>Expense Name</th>
+                <th>Amount</th>
+                <th>Paid By</th>
+                <th>Split Type</th>
+                <th>Participants</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Expenses will be displayed here -->
+        </tbody>
+    </table>
+
+    <button class="download-button" onclick="showBalanceSheet()">Download Balance Sheet</button>
+    <button class="reset-button" onclick="resetBilling()">Reset Billing</button>
+
+</body>
+</html>
